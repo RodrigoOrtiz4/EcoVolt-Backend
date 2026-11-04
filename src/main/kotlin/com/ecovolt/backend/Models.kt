@@ -15,8 +15,8 @@ data class RegistroRequest(val nombre: String? = null, val usuario: String? = nu
 // El id no se envía: lo asigna la base de datos.
 @Serializable
 data class NuevaLecturaRequest(
-    val fecha: String? = null,                          // "2026-10-16"
-    val momento: String? = null,                        // "viernes" o "lunes"
+    val fecha: String? = null,
+    val momento: String? = null,
     @SerialName("valor_kwh") val valorKwh: Double? = null
 )
 
