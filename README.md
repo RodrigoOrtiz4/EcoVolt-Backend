@@ -1,6 +1,6 @@
 # EcoVolt Backend (Kotlin + Ktor)
 
-API REST de EcoVolt escrita en **Kotlin** con **Ktor**. Se abre y se ejecuta desde **Android Studio**. Maneja el registro e inicio de sesión de usuarios y entrega las lecturas del medidor a la app (proyecto `MyApplication`).
+API REST de EcoVolt escrita en **Kotlin** con **Ktor**. Se abre y se ejecuta desde **Android Studio**. Maneja el registro e inicio de sesión de usuarios, las lecturas del medidor, los reportes de desperdicio o falla con foto y los consejos de ahorro (proyecto `MyApplication`).
 
 Es equivalente al backend en Node.js: **mismas rutas, mismo formato JSON y mismos usuarios predefinidos**, por lo que la app funciona igual con cualquiera de los dos.
 
@@ -58,12 +58,20 @@ Igual que el backend en Node. Los errores traen `{ "mensaje": "..." }`.
 | POST | `/auth/login` | Inicia sesión | No |
 | GET | `/lecturas` | Lecturas del medidor | Sí |
 | POST | `/lecturas` | Guarda una lectura capturada con la cámara (OCR) | Sí (Director o Responsable) |
+| POST | `/reportes` | Envía un reporte de desperdicio o falla con foto (RFN-19) | Sí (cualquier rol) |
+| GET | `/reportes` | Reportes: todos para Director/Responsable, los propios para los demás | Sí |
+| GET | `/reportes/{id}/foto` | Foto de un reporte (`image/jpeg` o `image/png`) | Sí |
+| GET | `/consejos` | Consejos de ahorro para escuela y hogar (RFN-25). Filtro opcional `?ambito=escuela` o `?ambito=hogar` | No |
 
 - `POST /auth/register` recibe `{ "nombre", "usuario", "contrasena" }` y responde `201`, `400` (datos inválidos, con `errores` por campo) o `409` (usuario repetido).
 - `POST /auth/login` recibe `{ "usuario", "contrasena" }` y responde `200` o `401`.
 - `GET /lecturas` requiere `Authorization: Bearer <token>`; responde `200` o `401`.
 - `POST /lecturas` requiere `Authorization: Bearer <token>` y recibe `{ "fecha": "2026-10-16", "momento": "viernes", "valor_kwh": 1601.5 }`. Responde `201` con la lectura guardada (ya con su `id`), `400` (datos inválidos, con `errores` por campo), `401` (sin sesión o sesión vencida) o `403` (el rol no puede capturar lecturas: solo `DIRECTOR` y `RESPONSABLE`).
   - El reconocimiento del número (OCR) se hace **en el celular** con ML Kit, sin internet. Al servidor solo llega el número que el usuario ya revisó y confirmó.
+- `POST /reportes` requiere `Authorization: Bearer <token>` y recibe `{ "tipo": "desperdicio", "area": "Salón 3B", "descripcion": "Luces encendidas sin nadie", "foto_base64": "<JPG o PNG en Base64>" }`.
+  - `tipo`: `desperdicio` o `falla`. `area`: 3 a 50 caracteres. `descripcion`: 10 a 500 caracteres. `foto_base64`: obligatoria, JPG o PNG de máximo 3 MB (se revisa la firma del archivo).
+  - El autor sale del token y la fecha la pone el servidor (hora de México). Responde `201` con el reporte (sin la foto), `400` (con `errores` por campo) o `401`.
+- `GET /reportes/{id}/foto` responde `404` si el reporte no existe **o** si no es tuyo y tu rol no atiende reportes.
 - Los tokens duran 30 días.
 
 ## Usuarios predefinidos
@@ -89,10 +97,10 @@ New-NetFirewallRule -DisplayName "EcoVolt API" -Direction Inbound -Protocol TCP 
 ```
 src/main/kotlin/com/ecovolt/backend/
   Main.kt          Arranque del servidor
-  Application.kt   Configuración de Ktor y rutas (/auth, GET y POST /lecturas, /health)
-  Database.kt      SQLite, tablas y datos iniciales
-  Security.kt      bcrypt, migración desde SHA-256 y tokens JWT
-  Validators.kt    Validaciones de usuario, contraseña, nombre y de las lecturas (fecha, momento, kWh)
+  Application.kt   Configuración de Ktor y rutas (/auth, /lecturas, /reportes, /consejos, /health)
+  Database.kt      SQLite, tablas (usuarios, lecturas, reportes, consejos) y datos iniciales
+  Security.kt      bcrypt, migración desde SHA-256 y tokens JWT (id + rol)
+  Validators.kt    Validaciones de usuario, contraseña, nombre, lecturas y reportes (tipo, área, descripción, foto)
   Models.kt        Formatos JSON de entrada y salida
 src/main/resources/logback.xml   Nivel de mensajes en consola
 ```
