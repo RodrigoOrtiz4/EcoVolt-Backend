@@ -29,6 +29,67 @@ private val LECTURAS_INICIALES = listOf(
     LecturaResponse(4, "2026-09-28", "lunes", 1594.1),
 )
 
+// Consejos de ahorro (RFN-25). Viven en el servidor para poder cambiarlos sin publicar otra versión de la app.
+private val CONSEJOS_INICIALES = listOf(
+    // ---- Escuela ----
+    ConsejoResponse(1, "escuela", "Hábitos", "🙋",
+        "Nombra un guardián de la energía",
+        "En cada grupo, un alumno por semana se encarga de apagar luces, ventiladores y el proyector al terminar la última clase."),
+    ConsejoResponse(2, "escuela", "Iluminación", "☀️",
+        "Aprovecha la luz natural",
+        "Abre cortinas y persianas. Si la fila de lámparas junto a la ventana no hace falta, apágala: el salón sigue bien iluminado."),
+    ConsejoResponse(3, "escuela", "Equipos", "🔌",
+        "Cuidado con el consumo fantasma",
+        "Proyectores, bocinas y computadoras en espera siguen gastando. Desconéctalos el viernes: EcoVolt compara la lectura del viernes con la del lunes para detectarlo."),
+    ConsejoResponse(4, "escuela", "Equipos", "💻",
+        "Suspensión automática en el centro de cómputo",
+        "Configura las computadoras para apagar la pantalla a los 5 minutos y suspenderse a los 15 minutos sin uso."),
+    ConsejoResponse(5, "escuela", "Climatización", "🌡️",
+        "Aire acondicionado a 24-25 °C",
+        "Con el aire encendido mantén puertas y ventanas cerradas. Cada grado más frío aumenta bastante el consumo."),
+    ConsejoResponse(6, "escuela", "Cocina", "🧊",
+        "Refrigeradores de la cafetería",
+        "Revisa que el empaque de la puerta cierre bien, no metas comida caliente y no los pegues a la pared: necesitan espacio para ventilar."),
+    ConsejoResponse(7, "escuela", "Hábitos", "📋",
+        "Revisión del viernes",
+        "Antes de cerrar, recorre salones, baños y oficinas con una lista: luces, ventiladores, equipos y llaves de agua. Reporta en EcoVolt lo que encuentres encendido."),
+    ConsejoResponse(8, "escuela", "Iluminación", "💡",
+        "Cambia a focos y lámparas LED",
+        "Gastan hasta 75 % menos que los focos incandescentes y duran muchos años más."),
+    // ---- Hogar ----
+    ConsejoResponse(9, "hogar", "Equipos", "🔌",
+        "Usa multicontactos con interruptor",
+        "Conecta la tele, la consola y el módem en un multicontacto y apágalo al dormir o al salir: así cortas el consumo en espera."),
+    ConsejoResponse(10, "hogar", "Iluminación", "💡",
+        "Focos LED en los lugares que más usas",
+        "Empieza por la cocina, la sala y el comedor, que son los focos que más horas pasan encendidos."),
+    ConsejoResponse(11, "hogar", "Cocina", "🧊",
+        "Refrigerador eficiente",
+        "Déjalo a unos 10 cm de la pared, ábrelo lo menos posible y prueba el empaque: si una hoja de papel se desliza con la puerta cerrada, hay que cambiarlo."),
+    ConsejoResponse(12, "hogar", "Lavado", "🧺",
+        "Lava y plancha con cargas completas",
+        "Usa la lavadora con carga completa y agua fría. Junta la ropa y plancha todo de una vez para no calentar la plancha varias veces."),
+    ConsejoResponse(13, "hogar", "Hábitos", "📺",
+        "Apaga, no dejes en espera",
+        "Apaga la tele y la consola desde el botón o el multicontacto. Bajar un poco el brillo de la pantalla también ayuda."),
+    ConsejoResponse(14, "hogar", "Climatización", "🌀",
+        "Ventilador y aire con medida",
+        "Si usas aire acondicionado, ponlo en 24-25 °C y limpia sus filtros cada mes. Un ventilador gasta mucho menos."),
+    ConsejoResponse(15, "hogar", "Hábitos", "🧾",
+        "Revisa tu recibo de luz",
+        "Compara los kWh de tu recibo con el periodo anterior. Si subieron sin razón, busca aparatos que se queden encendidos."),
+    ConsejoResponse(16, "hogar", "Equipos", "🔋",
+        "Desconecta los cargadores",
+        "Cuando el celular termine de cargar, desconecta el cargador del contacto: aunque sea poco, sigue consumiendo."),
+)
+
+// Consulta base de los reportes: se une con usuarios para mandar el nombre de quien lo envió.
+// La foto no se incluye; se pide aparte.
+private val CONSULTA_REPORTES = """
+    SELECT r.id, r.tipo, r.area, r.descripcion, r.fecha, u.nombre AS autor
+    FROM reportes r JOIN usuarios u ON u.id = r.usuario_id
+""".trimIndent()
+
 // Base de datos SQLite con JDBC. Una sola conexión compartida: los métodos son
 // @Synchronized para que no se pisen entre peticiones simultáneas (suficiente para este proyecto).
 class Database(ruta: String) : AutoCloseable {
@@ -73,6 +134,34 @@ class Database(ruta: String) : AutoCloseable {
             """.trimIndent()
         )
         ejecutar("CREATE TABLE IF NOT EXISTS config (clave TEXT PRIMARY KEY, valor TEXT NOT NULL)")
+        // Reportes de desperdicio o falla. La foto se guarda dentro de la base de datos (BLOB)
+        // para que todo quede en un solo archivo, igual que el resto de los datos.
+        ejecutar(
+            """
+            CREATE TABLE IF NOT EXISTS reportes (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                usuario_id  INTEGER NOT NULL REFERENCES usuarios(id),
+                tipo        TEXT NOT NULL CHECK (tipo IN ('desperdicio','falla')),
+                area        TEXT NOT NULL,
+                descripcion TEXT NOT NULL,
+                fecha       TEXT NOT NULL,
+                foto        BLOB NOT NULL,
+                foto_tipo   TEXT NOT NULL
+            )
+            """.trimIndent()
+        )
+        ejecutar(
+            """
+            CREATE TABLE IF NOT EXISTS consejos (
+                id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                ambito    TEXT NOT NULL CHECK (ambito IN ('escuela','hogar')),
+                categoria TEXT NOT NULL,
+                icono     TEXT NOT NULL,
+                titulo    TEXT NOT NULL,
+                texto     TEXT NOT NULL
+            )
+            """.trimIndent()
+        )
     }
 
     private fun contar(tabla: String): Int =
@@ -103,6 +192,21 @@ class Database(ruta: String) : AutoCloseable {
                     ps.setString(2, l.fecha)
                     ps.setString(3, l.momento)
                     ps.setDouble(4, l.valorKwh)
+                    ps.executeUpdate()
+                }
+            }
+        }
+        if (contar("consejos") == 0) {
+            conexion.prepareStatement(
+                "INSERT INTO consejos (id, ambito, categoria, icono, titulo, texto) VALUES (?, ?, ?, ?, ?, ?)"
+            ).use { ps ->
+                for (c in CONSEJOS_INICIALES) {
+                    ps.setInt(1, c.id)
+                    ps.setString(2, c.ambito)
+                    ps.setString(3, c.categoria)
+                    ps.setString(4, c.icono)
+                    ps.setString(5, c.titulo)
+                    ps.setString(6, c.texto)
                     ps.executeUpdate()
                 }
             }
@@ -182,6 +286,97 @@ class Database(ruta: String) : AutoCloseable {
             st.executeQuery("SELECT last_insert_rowid()").use { rs -> rs.next(); rs.getInt(1) }
         }
         return LecturaResponse(id, fecha, momento, valorKwh)
+    }
+
+    // ---- Reportes (RFN-19) ----
+
+    private fun reporteDe(rs: ResultSet) = ReporteResponse(
+        id = rs.getInt("id"),
+        tipo = rs.getString("tipo"),
+        area = rs.getString("area"),
+        descripcion = rs.getString("descripcion"),
+        fecha = rs.getString("fecha"),
+        autor = rs.getString("autor")
+    )
+
+    // Guarda un reporte con su foto y lo devuelve ya con su id (sin la foto)
+    @Synchronized
+    fun agregarReporte(
+        usuarioId: Int, tipo: String, area: String, descripcion: String,
+        fecha: String, foto: ByteArray, fotoTipo: String
+    ): ReporteResponse {
+        conexion.prepareStatement(
+            "INSERT INTO reportes (usuario_id, tipo, area, descripcion, fecha, foto, foto_tipo) VALUES (?, ?, ?, ?, ?, ?, ?)"
+        ).use { ps ->
+            ps.setInt(1, usuarioId)
+            ps.setString(2, tipo)
+            ps.setString(3, area)
+            ps.setString(4, descripcion)
+            ps.setString(5, fecha)
+            ps.setBytes(6, foto)
+            ps.setString(7, fotoTipo)
+            ps.executeUpdate()
+        }
+        val id = conexion.createStatement().use { st ->
+            st.executeQuery("SELECT last_insert_rowid()").use { rs -> rs.next(); rs.getInt(1) }
+        }
+        return conexion.prepareStatement("$CONSULTA_REPORTES WHERE r.id = ?").use { ps ->
+            ps.setInt(1, id)
+            ps.executeQuery().use { rs -> rs.next(); reporteDe(rs) }
+        }
+    }
+
+    // Los más nuevos primero. Con usuarioId solo devuelve los de esa persona; con null, todos.
+    @Synchronized
+    fun reportes(usuarioId: Int?): List<ReporteResponse> {
+        val sql = if (usuarioId == null) "$CONSULTA_REPORTES ORDER BY r.id DESC"
+                  else "$CONSULTA_REPORTES WHERE r.usuario_id = ? ORDER BY r.id DESC"
+        return conexion.prepareStatement(sql).use { ps ->
+            if (usuarioId != null) ps.setInt(1, usuarioId)
+            ps.executeQuery().use { rs ->
+                val lista = mutableListOf<ReporteResponse>()
+                while (rs.next()) lista.add(reporteDe(rs))
+                lista
+            }
+        }
+    }
+
+    // La foto de un reporte y de quién es (para revisar el permiso), o null si no existe
+    @Synchronized
+    fun fotoReporte(id: Int): FotoReporte? =
+        conexion.prepareStatement("SELECT foto, foto_tipo, usuario_id FROM reportes WHERE id = ?").use { ps ->
+            ps.setInt(1, id)
+            ps.executeQuery().use { rs ->
+                if (rs.next()) FotoReporte(rs.getBytes("foto"), rs.getString("foto_tipo"), rs.getInt("usuario_id")) else null
+            }
+        }
+
+    // ---- Consejos (RFN-25) ----
+
+    // Con ambito ("escuela" u "hogar") filtra; con null devuelve todos
+    @Synchronized
+    fun consejos(ambito: String?): List<ConsejoResponse> {
+        val sql = if (ambito == null) "SELECT * FROM consejos ORDER BY id"
+                  else "SELECT * FROM consejos WHERE ambito = ? ORDER BY id"
+        return conexion.prepareStatement(sql).use { ps ->
+            if (ambito != null) ps.setString(1, ambito)
+            ps.executeQuery().use { rs ->
+                val lista = mutableListOf<ConsejoResponse>()
+                while (rs.next()) {
+                    lista.add(
+                        ConsejoResponse(
+                            id = rs.getInt("id"),
+                            ambito = rs.getString("ambito"),
+                            categoria = rs.getString("categoria"),
+                            icono = rs.getString("icono"),
+                            titulo = rs.getString("titulo"),
+                            texto = rs.getString("texto")
+                        )
+                    )
+                }
+                lista
+            }
+        }
     }
 
     // Secreto para firmar los tokens. Se genera una sola vez y se guarda en la base de datos,

@@ -67,16 +67,23 @@ class Tokens(secreto: String) {
     }
 
     // true si el token es auténtico y no ha vencido
-    fun esValido(token: String): Boolean = rolDe(token) != null
+    fun esValido(token: String): Boolean = sesionDe(token) != null
 
-    // Rol guardado dentro del token ("DIRECTOR", "RESPONSABLE", ...), o null si el token
-    // es falso o ya venció. Se puede confiar en él porque el token va firmado por el servidor.
-    fun rolDe(token: String): String? =
+    // Id (va en el "subject") y rol guardados dentro del token, o null si el token es falso
+    // o ya venció. Se puede confiar en ellos porque el token va firmado por el servidor.
+    // Los reportes necesitan el id para saber quién envió cada uno.
+    fun sesionDe(token: String): Sesion? =
         try {
-            verificador.verify(token).getClaim("rol").asString()
+            val datos = verificador.verify(token)
+            val id = datos.subject?.toIntOrNull()
+            val rol = datos.getClaim("rol").asString()
+            if (id == null || rol == null) null else Sesion(id, rol)
         } catch (e: JWTVerificationException) {
             null
         }
+
+    // Solo el rol ("DIRECTOR", "RESPONSABLE", ...), o null si el token no es válido
+    fun rolDe(token: String): String? = sesionDe(token)?.rol
 
     private companion object {
         const val DURACION_MS = 30L * 24 * 60 * 60 * 1000
