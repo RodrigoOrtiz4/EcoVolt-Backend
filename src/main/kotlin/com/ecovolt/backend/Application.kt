@@ -38,7 +38,16 @@ fun Application.modulo(db: Database) {
         json(Json { ignoreUnknownKeys = true })
     }
 
-    
+    install(StatusPages) {
+        // Errores inesperados: se registran en consola pero nunca se filtra el detalle al cliente
+        exception<Throwable> { call, causa ->
+            call.application.environment.log.error("Error no controlado", causa)
+            call.respond(HttpStatusCode.InternalServerError, ErrorResponse("Error interno del servidor"))
+        }
+        status(HttpStatusCode.NotFound) { call, _ ->
+            call.respond(HttpStatusCode.NotFound, ErrorResponse("Ruta no encontrada"))
+        }
+    }
 
     routing {
         get("/health") {
