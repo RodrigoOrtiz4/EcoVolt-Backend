@@ -20,6 +20,9 @@ data class NuevaLecturaRequest(
     @SerialName("valor_kwh") val valorKwh: Double? = null
 )
 
+// Reporte de desperdicio o falla (RFN-19). La foto viaja como texto Base64 dentro del JSON.
+// Ni el id, ni la fecha, ni el autor se envían: los pone el servidor.
+//Este es un comentario para subrilo al repositorio de git
 @Serializable
 data class NuevoReporteRequest(
     val tipo: String? = null,                           // "desperdicio" o "falla"
