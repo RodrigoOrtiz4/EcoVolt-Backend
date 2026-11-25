@@ -43,6 +43,60 @@ object Validators {
         else -> null
     }
 
+    // Contraseña nueva al cambiarla: más estricta que la del registro (igual que pide la app)
+    fun contrasenaSegura(valor: String?): String? = when {
+        valor.isNullOrEmpty() -> "Escribe la nueva contraseña"
+        valor.length < 8 -> "Debe tener al menos 8 caracteres"
+        valor.length > 32 -> "Debe tener máximo 32 caracteres"
+        valor.any { it.isWhitespace() } -> "No puede llevar espacios"
+        valor.none { it.isUpperCase() } -> "Debe incluir al menos una mayúscula"
+        valor.none { it.isDigit() } -> "Debe incluir al menos un número"
+        valor.toByteArray(Charsets.UTF_8).size > 72 -> "Contiene demasiados caracteres especiales"
+        else -> null
+    }
+
+    // ---- Registro de alumnos: código de grupo y pregunta de seguridad ----
+
+    private val formatoCodigo = Regex("^[A-Z0-9]{6}$")
+
+    // 6 letras o números. Se compara en mayúsculas: "eco3a1" y "ECO3A1" son el mismo código.
+    fun codigoGrupo(valor: String?): String? {
+        val t = valor?.trim()?.uppercase().orEmpty()
+        return when {
+            t.isEmpty() -> "Escribe el código de tu grupo"
+            t.length != 6 -> "El código tiene 6 caracteres"
+            !formatoCodigo.matches(t) -> "Solo letras y números, sin espacios"
+            else -> null
+        }
+    }
+
+    fun preguntaSeguridad(valor: String?): String? = when {
+        valor.isNullOrBlank() -> "Elige una pregunta de seguridad"
+        valor.trim() !in PREGUNTAS_SEGURIDAD -> "Elige una de las preguntas de la lista"
+        else -> null
+    }
+
+    fun respuestaSeguridad(valor: String?): String? {
+        val t = normalizarRespuesta(valor.orEmpty())
+        return when {
+            t.isEmpty() -> "Escribe tu respuesta"
+            t.length < 2 -> "Debe tener al menos 2 caracteres"
+            t.length > 40 -> "Debe tener máximo 40 caracteres"
+            else -> null
+        }
+    }
+
+    // Nombre del grupo que crea el docente, por ejemplo "3° A matutino"
+    fun nombreGrupo(valor: String?): String? {
+        val t = valor?.trim().orEmpty()
+        return when {
+            t.isEmpty() -> "Escribe el nombre del grupo"
+            t.length < 2 -> "Debe tener al menos 2 caracteres"
+            t.length > 30 -> "Debe tener máximo 30 caracteres"
+            else -> null
+        }
+    }
+
     // ---- Lecturas del medidor (POST /lecturas) ----
 
     // Fecha real con formato año-mes-día (2026-10-16) y que no sea del futuro
@@ -70,6 +124,23 @@ object Validators {
         valor <= 0.0 -> "Debe ser mayor que cero"
         valor >= 10_000_000.0 -> "El valor es demasiado grande"
         else -> null
+    }
+
+    // Cómo se obtuvo el número: con la foto (OCR) o escrito a mano. Es opcional.
+    fun origen(valor: String?): String? = when (valor?.trim()) {
+        null, "", "ocr", "manual" -> null
+        else -> "El origen debe ser \"ocr\" o \"manual\""
+    }
+
+    // Nota para dirección (por ejemplo, cuando se cambió el medidor). Es opcional.
+    fun nota(valor: String?): String? {
+        val t = valor?.trim().orEmpty()
+        return when {
+            t.isEmpty() -> null
+            t.length < 10 -> "Explica el cambio con al menos 10 caracteres"
+            t.length > 300 -> "Debe tener máximo 300 caracteres"
+            else -> null
+        }
     }
 
     fun nombre(valor: String?): String? {
@@ -134,9 +205,30 @@ object Validators {
         }
     }
 
+    fun estatusReporte(valor: String?): String? = when (valor?.trim()) {
+        "pendiente", "en_proceso", "resuelto" -> null
+        null, "" -> "Falta el estatus"
+        else -> "El estatus debe ser \"pendiente\", \"en_proceso\" o \"resuelto\""
+    }
+
     // Filtro opcional de GET /consejos?ambito=...
     fun ambito(valor: String?): String? = when (valor) {
         null, "escuela", "hogar" -> null
         else -> "El ámbito debe ser \"escuela\" o \"hogar\""
+    }
+
+    // ID de instalación de Firebase (FID): 22 caracteres de letras, números, "-" y "_".
+    // Se aceptan hasta 300 por si en el futuro se registran tokens de FCM (llevan ":").
+    fun fid(valor: String?): String? = when {
+        valor.isNullOrBlank() -> "Falta el identificador del teléfono"
+        !Regex("^[A-Za-z0-9_:\\-]{10,300}$").matches(valor) -> "El identificador del teléfono no es válido"
+        else -> null
+    }
+
+    // Evaluación de un curso: la del principio o la del final
+    fun momentoEvaluacion(valor: String?): String? = when (valor?.trim()) {
+        "inicial", "final" -> null
+        null, "" -> "Falta el momento de la evaluación"
+        else -> "El momento debe ser \"inicial\" o \"final\""
     }
 }

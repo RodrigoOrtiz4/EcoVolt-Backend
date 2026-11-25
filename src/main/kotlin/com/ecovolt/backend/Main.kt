@@ -2,10 +2,14 @@ package com.ecovolt.backend
 
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import java.net.Inet4Address
 import java.net.NetworkInterface
 
-// Punto de arranque. Variables de entorno opcionales: PORT (3000), DB_PATH (data/ecovolt.db), JWT_SECRET.
+// Punto de arranque. Variables de entorno opcionales: PORT (3000), DB_PATH (data/ecovolt.db), JWT_SECRET
+// y FIREBASE_CREDENTIALS (JSON de la cuenta de servicio de Firebase, para las notificaciones push).
 fun main() {
     val puerto = System.getenv("PORT")?.toIntOrNull() ?: 3000
     val rutaDb = System.getenv("DB_PATH") ?: "data/ecovolt.db"
@@ -13,9 +17,13 @@ fun main() {
     val db = Database(rutaDb)
     mostrarDirecciones(puerto)
 
+    // Notificaciones push: se activan si está FIREBASE_CREDENTIALS (ver README)
+    val notificador = Notificador(db, EnvioFcm.desdeEntorno())
+    Recordatorios(db, notificador, ZONA_ESCUELA).iniciar(CoroutineScope(SupervisorJob() + Dispatchers.Default))
+
     // host 0.0.0.0: escucha en todas las interfaces para que el emulador y el celular puedan conectarse
     embeddedServer(Netty, port = puerto, host = "0.0.0.0") {
-        modulo(db)
+        modulo(db, notificador)
     }.start(wait = true)
 }
 
