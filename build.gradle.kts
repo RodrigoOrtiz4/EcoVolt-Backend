@@ -21,6 +21,8 @@ dependencies {
     implementation("io.ktor:ktor-server-content-negotiation:$ktorVersion")
     implementation("io.ktor:ktor-serialization-kotlinx-json:$ktorVersion")
     implementation("io.ktor:ktor-server-status-pages:$ktorVersion")
+    // CORS: para que la versión web de la app (en el navegador) pueda usar la API
+    implementation("io.ktor:ktor-server-cors:$ktorVersion")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
 
     // Base de datos SQLite (se usa con JDBC directo, sin ORM)
@@ -32,6 +34,9 @@ dependencies {
 
     // Registro de mensajes en consola
     implementation("ch.qos.logback:logback-classic:1.5.12")
+
+    // Notificaciones push con Firebase Cloud Messaging (envío con el ID de instalación, FID)
+    implementation("com.google.firebase:firebase-admin:9.12.0")
 }
 
 application {
